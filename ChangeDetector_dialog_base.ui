@@ -1,0 +1,829 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ChangeDetectorDialogBase</class>
+ <widget class="QDialog" name="ChangeDetectorDialogBase">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1470</width>
+    <height>818</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Object Based Change Detection Tool</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+QDialog {
+    background-color: #f2f5f9;
+    font-family: Segoe UI;
+    font-size: 10pt;
+    color: #2f3b45;
+}
+
+/* =========================
+   GROUP BOXES
+========================= */
+QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #cfd8e3;
+    border-radius: 10px;
+    margin-top: 10px;
+    padding-top: 12px;
+    font-weight: bold;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 6px;
+    color: #1f4e79;
+}
+
+/* =========================
+   LABELS
+========================= */
+QLabel {
+    color: #34495e;
+    background: transparent;
+}
+
+/* =========================
+   INPUT FIELDS
+========================= */
+QLineEdit {
+    background-color: white;
+    border: 1px solid #b7c4cf;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QLineEdit:focus {
+    border: 1px solid #4a90e2;
+}
+
+/* =========================
+   COMBOBOX
+========================= */
+QComboBox {
+    background-color: white;
+    border: 1px solid #b7c4cf;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QComboBox:focus {
+    border: 1px solid #4a90e2;
+}
+
+/* =========================
+   SPINBOX
+========================= */
+QSpinBox, QDoubleSpinBox {
+    background-color: white;
+    border: 1px solid #b7c4cf;
+    border-radius: 6px;
+    padding: 3px;
+}
+
+/* =========================
+   CHECKBOX
+========================= */
+QCheckBox {
+    spacing: 5px;
+    color: #2f3b45;
+}
+
+/* =========================
+   PUSH BUTTONS
+========================= */
+QPushButton {
+    background-color: #4a90e2;
+    color: white;
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-weight: bold;
+    border: none;
+}
+
+QPushButton:hover {
+    background-color: #357abd;
+}
+
+/* OK button */
+QPushButton#okButton {
+    background-color: #27ae60;
+}
+
+QPushButton#okButton:hover {
+    background-color: #219150;
+}
+
+/* Cancel button */
+QPushButton#cancelButton {
+    background-color: #e74c3c;
+}
+
+QPushButton#cancelButton:hover {
+    background-color: #c0392b;
+}
+
+/* =========================
+   PREVIEW AREAS
+========================= */
+QScrollArea {
+    background-color: white;
+    border: 1px solid #cfd8e3;
+    border-radius: 8px;
+}
+
+/* =========================
+   PROGRESS BAR
+========================= */
+QProgressBar {
+    background-color: white;
+    border: 1px solid #cfd8e3;
+    border-radius: 6px;
+    text-align: center;
+    min-height: 20px;
+}
+
+QProgressBar::chunk {
+    background-color: #4a90e2;
+    border-radius: 5px;
+}
+
+</string>
+  </property>
+  <widget class="QGroupBox" name="inputGroup">
+   <property name="geometry">
+    <rect>
+     <x>11</x>
+     <y>0</y>
+     <width>1051</width>
+     <height>111</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Input Data</string>
+   </property>
+   <widget class="QLabel" name="labelDate1">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>20</y>
+      <width>51</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Date 1</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="date1LineEdit">
+    <property name="geometry">
+     <rect>
+      <x>112</x>
+      <y>20</y>
+      <width>702</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:balck;</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="browseDate1Button">
+    <property name="geometry">
+     <rect>
+      <x>821</x>
+      <y>20</y>
+      <width>68</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Browse</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelRed">
+    <property name="geometry">
+     <rect>
+      <x>896</x>
+      <y>20</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="acceptDrops">
+     <bool>true</bool>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="text">
+     <string>Red Band</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboRedBand">
+    <property name="geometry">
+     <rect>
+      <x>969</x>
+      <y>20</y>
+      <width>70</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="acceptDrops">
+     <bool>true</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+    <property name="editable">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelDate2">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>50</y>
+      <width>51</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Date 2</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="date2LineEdit">
+    <property name="geometry">
+     <rect>
+      <x>112</x>
+      <y>50</y>
+      <width>702</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="browseDate2Button">
+    <property name="geometry">
+     <rect>
+      <x>821</x>
+      <y>50</y>
+      <width>68</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Browse</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelGreen">
+    <property name="geometry">
+     <rect>
+      <x>890</x>
+      <y>50</y>
+      <width>81</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Green Band</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboGreenBand">
+    <property name="geometry">
+     <rect>
+      <x>969</x>
+      <y>50</y>
+      <width>70</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="acceptDrops">
+     <bool>true</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+    <property name="editable">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelOutput">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>80</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Output Directory</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="outputDirLineEdit">
+    <property name="geometry">
+     <rect>
+      <x>112</x>
+      <y>80</y>
+      <width>702</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="autoFillBackground">
+     <bool>false</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="browseOutputButton">
+    <property name="geometry">
+     <rect>
+      <x>821</x>
+      <y>80</y>
+      <width>68</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Browse</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelBlue">
+    <property name="geometry">
+     <rect>
+      <x>900</x>
+      <y>80</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Blue Band</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboBlueBand">
+    <property name="geometry">
+     <rect>
+      <x>969</x>
+      <y>80</y>
+      <width>70</width>
+      <height>23</height>
+     </rect>
+    </property>
+    <property name="acceptDrops">
+     <bool>true</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+    <property name="editable">
+     <bool>true</bool>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>110</y>
+     <width>161</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Date 1 Preview</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_2">
+   <property name="geometry">
+    <rect>
+     <x>540</x>
+     <y>110</y>
+     <width>201</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Date 2 Preview</string>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="segmentationGroup">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>580</y>
+     <width>511</width>
+     <height>141</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Segmentation</string>
+   </property>
+   <widget class="QLabel" name="labelAlgorithm">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>20</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Algorithm</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="comboBox_segmentation">
+    <property name="geometry">
+     <rect>
+      <x>95</x>
+      <y>20</y>
+      <width>404</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="autoFillBackground">
+     <bool>true</bool>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+    <property name="editable">
+     <bool>true</bool>
+    </property>
+    <item>
+     <property name="text">
+      <string>SLIC + RAG</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>Watershed</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>Large Scale Mean Shift</string>
+     </property>
+    </item>
+   </widget>
+   <widget class="QLabel" name="compactnessLabel">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>50</y>
+      <width>91</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Compactness</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="segmentsLabel">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>80</y>
+      <width>71</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Segments</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="sigmaLabel">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>110</y>
+      <width>51</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Sigma</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="compactnessLineEdit">
+    <property name="geometry">
+     <rect>
+      <x>95</x>
+      <y>50</y>
+      <width>404</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="segmentsLineEdit">
+    <property name="geometry">
+     <rect>
+      <x>95</x>
+      <y>80</y>
+      <width>404</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="sigmaLineEdit">
+    <property name="geometry">
+     <rect>
+      <x>95</x>
+      <y>110</y>
+      <width>404</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color:black;</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="featuresGroup">
+   <property name="geometry">
+    <rect>
+     <x>530</x>
+     <y>590</y>
+     <width>531</width>
+     <height>131</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Features</string>
+   </property>
+   <widget class="QCheckBox" name="checkBox_spectral">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>40</y>
+      <width>81</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Spectral</string>
+    </property>
+   </widget>
+   <widget class="QGroupBox" name="textureGroup">
+    <property name="geometry">
+     <rect>
+      <x>120</x>
+      <y>30</y>
+      <width>391</width>
+      <height>62</height>
+     </rect>
+    </property>
+    <property name="title">
+     <string>Texture</string>
+    </property>
+    <widget class="QRadioButton" name="radioButton_glcm">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>95</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">color:black;</string>
+     </property>
+     <property name="text">
+      <string>GLCM</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="radioButton_gabor">
+     <property name="geometry">
+      <rect>
+       <x>150</x>
+       <y>30</y>
+       <width>81</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">color:black;</string>
+     </property>
+     <property name="text">
+      <string>Gabor</string>
+     </property>
+    </widget>
+    <widget class="QRadioButton" name="radioButton_tamura">
+     <property name="geometry">
+      <rect>
+       <x>270</x>
+       <y>30</y>
+       <width>95</width>
+       <height>20</height>
+      </rect>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">color:black;</string>
+     </property>
+     <property name="text">
+      <string>Tamura</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </widget>
+   <widget class="QLabel" name="labelMean">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>80</y>
+      <width>51</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Mean</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="labelStdDev">
+    <property name="geometry">
+     <rect>
+      <x>12</x>
+      <y>100</y>
+      <width>121</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Standard Deviation</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="progressGroup">
+   <property name="geometry">
+    <rect>
+     <x>12</x>
+     <y>720</y>
+     <width>1061</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>Progress</string>
+   </property>
+   <widget class="QProgressBar" name="progressBar">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>20</y>
+      <width>791</width>
+      <height>22</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="okButton">
+    <property name="geometry">
+     <rect>
+      <x>810</x>
+      <y>20</y>
+      <width>121</width>
+      <height>26</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>OK / RUN</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="cancelButton">
+    <property name="geometry">
+     <rect>
+      <x>940</x>
+      <y>20</y>
+      <width>101</width>
+      <height>26</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Cancel</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QScrollArea" name="scrollAreaDate1">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>140</y>
+     <width>511</width>
+     <height>431</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>480</width>
+     <height>280</height>
+    </size>
+   </property>
+   <property name="widgetResizable">
+    <bool>true</bool>
+   </property>
+   <widget class="QWidget" name="scrollWidget1">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>509</width>
+      <height>429</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout_3">
+     <item row="0" column="0">
+      <widget class="QLabel" name="image_label_1">
+       <property name="text">
+        <string>Date 1 Preview</string>
+       </property>
+       <property name="scaledContents">
+        <bool>true</bool>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QScrollArea" name="scrollAreaDate2">
+   <property name="geometry">
+    <rect>
+     <x>540</x>
+     <y>140</y>
+     <width>521</width>
+     <height>431</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>480</width>
+     <height>280</height>
+    </size>
+   </property>
+   <property name="widgetResizable">
+    <bool>true</bool>
+   </property>
+   <widget class="QWidget" name="scrollWidget2">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>519</width>
+      <height>429</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="image_label_2">
+       <property name="text">
+        <string>Date 2 Preview</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  </widget>
+  <resources/>
+  <connections/>
+ </ui>
