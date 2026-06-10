@@ -316,10 +316,13 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         tamura_selected = self.radioButton_tamura.isChecked()
         image_path = self.date1LineEdit.text()
         output_dir = self.outputDirLineEdit.text()
-
-        compactness = int(self.compactnessLineEdit.text())
-        n_segments = int(self.segmentsLineEdit.text())
+        n_segments=int(self.segmentsLineEdit.text())
+        compactness=int(self.compactnessLineEdit.text())
         sigma = int(self.sigmaLineEdit.text())
+        image2_path = self.date2LineEdit.text()
+        if not image2_path:
+            QMessageBox.warning(self, "Warning", "Please select a Date 2 image.")
+            return
 
         with rasterio.open(image_path) as src:
             image = src.read([1, 2, 3])
@@ -332,7 +335,15 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             transform = original_transform
 
+        with rasterio.open(image2_path) as src2:
+            image2 = src2.read([1, 2, 3])
+
+        if image.shape != image2.shape:
+            QMessageBox.critical(self, "Error", "Date 1 and Date 2 images must have the same spatial dimensions.")
+            return
+
         image = np.transpose(image, (1, 2, 0))
+        image2 = np.transpose(image2, (1, 2, 0))
         valid_mask = mask > 0
 
         self.progressBar.setValue(20)
@@ -464,15 +475,20 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
             return contrast, homogeneity, energy, correlation
 
-        results = []
-        feature_dict = {}
+        results_d1 = []
+        results_d2 = []
+        feature_dict_d1 = {}
+        feature_dict_d2 = {}
         unique_segments = np.unique(labels2)
 
         for seg_val in unique_segments:
             if seg_val == 0:
                 continue
             mask = labels2 == seg_val
-            properties = {
+            properties_d1 = {
+                'label': int(seg_val)
+            }
+            properties_d2 = {
                 'label': int(seg_val)
             }
             # ==================================================
@@ -480,22 +496,38 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             # ==================================================
 
             if spectral_selected:
-                mean_r = float(image[:, :, 0][mask].mean())
-                mean_g = float(image[:, :, 1][mask].mean())
-                mean_b = float(image[:, :, 2][mask].mean())
+                mean_r1 = float(image[:, :, 0][mask].mean())
+                mean_g1 = float(image[:, :, 1][mask].mean())
+                mean_b1 = float(image[:, :, 2][mask].mean())
 
-                std_r = float(image[:, :, 0][mask].std())
-                std_g = float(image[:, :, 1][mask].std())
-                std_b = float(image[:, :, 2][mask].std())
+                std_r1 = float(image[:, :, 0][mask].std())
+                std_g1 = float(image[:, :, 1][mask].std())
+                std_b1 = float(image[:, :, 2][mask].std())
 
-                properties.update({
-                    'mean_red': mean_r,
-                    'mean_green': mean_g,
-                    'mean_blue': mean_b,
+                properties_d1.update({
+                    'mean_red': mean_r1,
+                    'mean_green': mean_g1,
+                    'mean_blue': mean_b1,
+                    'std_red': std_r1,
+                    'std_green': std_g1,
+                    'std_blue': std_b1
+                })
 
-                    'std_red': std_r,
-                    'std_green': std_g,
-                    'std_blue': std_b
+                mean_r2 = float(image2[:, :, 0][mask].mean())
+                mean_g2 = float(image2[:, :, 1][mask].mean())
+                mean_b2 = float(image2[:, :, 2][mask].mean())
+
+                std_r2 = float(image2[:, :, 0][mask].std())
+                std_g2 = float(image2[:, :, 1][mask].std())
+                std_b2 = float(image2[:, :, 2][mask].std())
+
+                properties_d2.update({
+                    'mean_red': mean_r2,
+                    'mean_green': mean_g2,
+                    'mean_blue': mean_b2,
+                    'std_red': std_r2,
+                    'std_green': std_g2,
+                    'std_blue': std_b2
                 })
 
             # ==================================================
@@ -511,13 +543,21 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
             local_mask = mask[minr:maxr+1, minc:maxc+1]
 
-            red = image[minr:maxr+1, minc:maxc+1, 0].copy()
-            green = image[minr:maxr+1, minc:maxc+1, 1].copy()
-            blue = image[minr:maxr+1, minc:maxc+1, 2].copy()
+            red1 = image[minr:maxr+1, minc:maxc+1, 0].copy()
+            green1 = image[minr:maxr+1, minc:maxc+1, 1].copy()
+            blue1 = image[minr:maxr+1, minc:maxc+1, 2].copy()
 
-            red[~local_mask] = 0
-            green[~local_mask] = 0
-            blue[~local_mask] = 0
+            red1[~local_mask] = 0
+            green1[~local_mask] = 0
+            blue1[~local_mask] = 0
+
+            red2 = image2[minr:maxr+1, minc:maxc+1, 0].copy()
+            green2 = image2[minr:maxr+1, minc:maxc+1, 1].copy()
+            blue2 = image2[minr:maxr+1, minc:maxc+1, 2].copy()
+
+            red2[~local_mask] = 0
+            green2[~local_mask] = 0
+            blue2[~local_mask] = 0
 
             # ==================================================
             # GLCM FEATURES
@@ -525,15 +565,26 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
             if glcm_selected:
 
-                r_feat = get_glcm_features(red.astype(np.uint8))
-                g_feat = get_glcm_features(green.astype(np.uint8))
-                b_feat = get_glcm_features(blue.astype(np.uint8))
+                r_feat1 = get_glcm_features(red1.astype(np.uint8))
+                g_feat1 = get_glcm_features(green1.astype(np.uint8))
+                b_feat1 = get_glcm_features(blue1.astype(np.uint8))
 
-                properties.update({
-                    'contrast': float(np.mean([r_feat[0], g_feat[0], b_feat[0]])),
-                    'homogeneity': float(np.mean([r_feat[1], g_feat[1], b_feat[1]])),
-                    'energy': float(np.mean([r_feat[2], g_feat[2], b_feat[2]])),
-                    'correlation': float(np.mean([r_feat[3], g_feat[3], b_feat[3]]))
+                properties_d1.update({
+                    'contrast': float(np.mean([r_feat1[0], g_feat1[0], b_feat1[0]])),
+                    'homogeneity': float(np.mean([r_feat1[1], g_feat1[1], b_feat1[1]])),
+                    'energy': float(np.mean([r_feat1[2], g_feat1[2], b_feat1[2]])),
+                    'correlation': float(np.mean([r_feat1[3], g_feat1[3], b_feat1[3]]))
+                })
+
+                r_feat2 = get_glcm_features(red2.astype(np.uint8))
+                g_feat2 = get_glcm_features(green2.astype(np.uint8))
+                b_feat2 = get_glcm_features(blue2.astype(np.uint8))
+
+                properties_d2.update({
+                    'contrast': float(np.mean([r_feat2[0], g_feat2[0], b_feat2[0]])),
+                    'homogeneity': float(np.mean([r_feat2[1], g_feat2[1], b_feat2[1]])),
+                    'energy': float(np.mean([r_feat2[2], g_feat2[2], b_feat2[2]])),
+                    'correlation': float(np.mean([r_feat2[3], g_feat2[3], b_feat2[3]]))
                 })
 
             # ==================================================
@@ -542,47 +593,42 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
             elif gabor_selected:
 
-                real_r, imag_r = gabor(red, frequency=0.2)
-                real_g, imag_g = gabor(green, frequency=0.2)
-                real_b, imag_b = gabor(blue, frequency=0.2)
+                real_r1, imag_r1 = gabor(red1, frequency=0.2)
+                real_g1, imag_g1 = gabor(green1, frequency=0.2)
+                real_b1, imag_b1 = gabor(blue1, frequency=0.2)
 
-                # Magnitude Response
-                mag_r = np.sqrt(real_r**2 + imag_r**2)
-                mag_g = np.sqrt(real_g**2 + imag_g**2)
-                mag_b = np.sqrt(real_b**2 + imag_b**2)
+                mag_r1 = np.sqrt(real_r1**2 + imag_r1**2)
+                mag_g1 = np.sqrt(real_g1**2 + imag_g1**2)
+                mag_b1 = np.sqrt(real_b1**2 + imag_b1**2)
 
-                # Phase Response
-                phase_r = np.arctan2(imag_r, real_r)
-                phase_g = np.arctan2(imag_g, real_g)
-                phase_b = np.arctan2(imag_b, real_b)
+                phase_r1 = np.arctan2(imag_r1, real_r1)
+                phase_g1 = np.arctan2(imag_g1, real_g1)
+                phase_b1 = np.arctan2(imag_b1, real_b1)
 
-                properties.update({
+                properties_d1.update({
+                    'gabor_mag_mean': float(np.mean([mag_r1.mean(), mag_g1.mean(), mag_b1.mean()])),
+                    'gabor_mag_std': float(np.mean([mag_r1.std(), mag_g1.std(), mag_b1.std()])),
+                    'gabor_phase_mean': float(np.mean([phase_r1.mean(), phase_g1.mean(), phase_b1.mean()])),
+                    'gabor_phase_std': float(np.mean([phase_r1.std(), phase_g1.std(), phase_b1.std()]))
+                })
 
-                    # Magnitude Features
-                    'gabor_mag_mean': float(np.mean([
-                        mag_r.mean(),
-                        mag_g.mean(),
-                        mag_b.mean()
-                    ])),
+                real_r2, imag_r2 = gabor(red2, frequency=0.2)
+                real_g2, imag_g2 = gabor(green2, frequency=0.2)
+                real_b2, imag_b2 = gabor(blue2, frequency=0.2)
 
-                    'gabor_mag_std': float(np.mean([
-                        mag_r.std(),
-                        mag_g.std(),
-                        mag_b.std()
-                    ])),
+                mag_r2 = np.sqrt(real_r2**2 + imag_r2**2)
+                mag_g2 = np.sqrt(real_g2**2 + imag_g2**2)
+                mag_b2 = np.sqrt(real_b2**2 + imag_b2**2)
 
-                    # Phase Features
-                    'gabor_phase_mean': float(np.mean([
-                        phase_r.mean(),
-                        phase_g.mean(),
-                        phase_b.mean()
-                    ])),
+                phase_r2 = np.arctan2(imag_r2, real_r2)
+                phase_g2 = np.arctan2(imag_g2, real_g2)
+                phase_b2 = np.arctan2(imag_b2, real_b2)
 
-                    'gabor_phase_std': float(np.mean([
-                        phase_r.std(),
-                        phase_g.std(),
-                        phase_b.std()
-                    ]))
+                properties_d2.update({
+                    'gabor_mag_mean': float(np.mean([mag_r2.mean(), mag_g2.mean(), mag_b2.mean()])),
+                    'gabor_mag_std': float(np.mean([mag_r2.std(), mag_g2.std(), mag_b2.std()])),
+                    'gabor_phase_mean': float(np.mean([phase_r2.mean(), phase_g2.mean(), phase_b2.mean()])),
+                    'gabor_phase_std': float(np.mean([phase_r2.std(), phase_g2.std(), phase_b2.std()]))
                 })
 
             # ==================================================
@@ -591,57 +637,70 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
             elif tamura_selected:
 
-                std = np.mean([
-                    red.std(),
-                    green.std(),
-                    blue.std()
-                ])
-
-                if std == 0:
-                    tamura_contrast = 0
-
+                std1 = np.mean([red1.std(), green1.std(), blue1.std()])
+                if std1 == 0:
+                    tamura_contrast1 = 0
                 else:
+                    kurt1 = np.mean((red1 - red1.mean())**4) / (red1.std()**4 + 1e-6)
+                    tamura_contrast1 = float(std1 / (kurt1**0.25))
 
-                    kurt = np.mean(
-                        (red - red.mean())**4
-                    ) / (red.std()**4 + 1e-6)
-
-                    tamura_contrast = float(
-                        std / (kurt**0.25)
-                    )
-
-                tamura_coarseness = float(np.mean([
-
-                    cv2.Laplacian(red, cv2.CV_64F).var(),
-
-                    cv2.Laplacian(green, cv2.CV_64F).var(),
-
-                    cv2.Laplacian(blue, cv2.CV_64F).var()
+                tamura_coarseness1 = float(np.mean([
+                    cv2.Laplacian(red1, cv2.CV_64F).var(),
+                    cv2.Laplacian(green1, cv2.CV_64F).var(),
+                    cv2.Laplacian(blue1, cv2.CV_64F).var()
                 ]))
 
-                properties.update({
+                properties_d1.update({
+                    'tamura_con': tamura_contrast1,
+                    'tamura_coarse': tamura_coarseness1
+                })
 
-                    'tamura_con': tamura_contrast,
-                    'tamura_coarse': tamura_coarseness
+                std2 = np.mean([red2.std(), green2.std(), blue2.std()])
+                if std2 == 0:
+                    tamura_contrast2 = 0
+                else:
+                    kurt2 = np.mean((red2 - red2.mean())**4) / (red2.std()**4 + 1e-6)
+                    tamura_contrast2 = float(std2 / (kurt2**0.25))
+
+                tamura_coarseness2 = float(np.mean([
+                    cv2.Laplacian(red2, cv2.CV_64F).var(),
+                    cv2.Laplacian(green2, cv2.CV_64F).var(),
+                    cv2.Laplacian(blue2, cv2.CV_64F).var()
+                ]))
+
+                properties_d2.update({
+                    'tamura_con': tamura_contrast2,
+                    'tamura_coarse': tamura_coarseness2
                 })
             
-            feature_dict[int(seg_val)] = properties
+            feature_dict_d1[int(seg_val)] = properties_d1
+            feature_dict_d2[int(seg_val)] = properties_d2
 
         for geom, value in shapes(labels2.astype(np.int32),mask=valid_mask,transform=transform):
             if value == 0:
                 continue
-            properties = feature_dict.get(int(value), {})
-            results.append({
+            properties_d1 = feature_dict_d1.get(int(value), {})
+            properties_d2 = feature_dict_d2.get(int(value), {})
+            results_d1.append({
                 'geometry': geom,
-                'properties': properties
+                'properties': properties_d1
+            })
+            results_d2.append({
+                'geometry': geom,
+                'properties': properties_d2
             })
 
-        gdf2 = gpd.GeoDataFrame.from_features(results)
-        gdf2.set_crs(crs, inplace=True)
+        gdf_d1 = gpd.GeoDataFrame.from_features(results_d1)
+        gdf_d1.set_crs(crs, inplace=True)
 
-        vector_output_path = os.path.join(output_dir, "slic_rag_vector.shp")
+        gdf_d2 = gpd.GeoDataFrame.from_features(results_d2)
+        gdf_d2.set_crs(crs, inplace=True)
 
-        gdf2.to_file(vector_output_path)
+        vector_output_path_d1 = os.path.join(output_dir, "slic_rag_vector_date1.shp")
+        vector_output_path_d2 = os.path.join(output_dir, "slic_rag_vector_date2.shp")
+
+        gdf_d1.to_file(vector_output_path_d1)
+        gdf_d2.to_file(vector_output_path_d2)
 
         layer = QgsRasterLayer(output_path, "SLIC_RAG_Output")
 
@@ -652,9 +711,14 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         if mean_layer.isValid():
             QgsProject.instance().addMapLayer(mean_layer)
 
-        vector_layer = QgsVectorLayer(vector_output_path, "SLIC_RAG_Vector", "ogr")
+        vector_layer_d1 = QgsVectorLayer(vector_output_path_d1, "SLIC_RAG_Vector_Date1", "ogr")
 
-        if vector_layer.isValid():
-            QgsProject.instance().addMapLayer(vector_layer)
+        if vector_layer_d1.isValid():
+            QgsProject.instance().addMapLayer(vector_layer_d1)
+
+        vector_layer_d2 = QgsVectorLayer(vector_output_path_d2, "SLIC_RAG_Vector_Date2", "ogr")
+
+        if vector_layer_d2.isValid():
+            QgsProject.instance().addMapLayer(vector_layer_d2)
 
         self.progressBar.setValue(100)
