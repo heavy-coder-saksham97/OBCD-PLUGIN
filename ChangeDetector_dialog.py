@@ -49,6 +49,40 @@ import cv2
 from skimage.filters import gabor
 
 
+def otsu_threshold_continuous(values):
+    """Computes Otsu threshold for a continuous 1D array of values."""
+    sorted_v = np.sort(values)
+    n = len(sorted_v)
+    if n == 0:
+        return 0.0
+    
+    sum_total = sorted_v.sum()
+    cumsum = np.cumsum(sorted_v)
+    
+    max_variance = -1.0
+    best_threshold = 0.0
+    
+    for i in range(1, n):
+        n0 = i
+        n1 = n - i
+        
+        sum0 = cumsum[i - 1]
+        sum1 = sum_total - sum0
+        
+        w0 = n0 / n
+        w1 = n1 / n
+        
+        mu0 = sum0 / n0
+        mu1 = sum1 / n1
+        
+        variance = w0 * w1 * ((mu0 - mu1) ** 2)
+        
+        if variance > max_variance:
+            max_variance = variance
+            best_threshold = (sorted_v[i - 1] + sorted_v[i]) / 2.0
+            
+    return best_threshold
+
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -676,11 +710,124 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             feature_dict_d1[int(seg_val)] = properties_d1
             feature_dict_d2[int(seg_val)] = properties_d2
 
+        # --------------------------------------------------
+        # CVA & OTSU CHANGE DETECTION
+        # --------------------------------------------------
+        sample_seg_id = next(iter(feature_dict_d1.keys())) if feature_dict_d1 else None
+        if sample_seg_id is not None:
+            feature_keys = [k for k in feature_dict_d1[sample_seg_id].keys() if k != 'label']
+        else:
+            feature_keys = []
+
+        seg_ids = list(feature_dict_d1.keys())
+        num_segs = len(seg_ids)
+        num_feats = len(feature_keys)
+
+        cva_mag_dict = {}
+        is_change_dict = {}
+        otsu_threshold = 0.0
+
+        if num_segs > 0 and num_feats > 0:
+            X1 = np.zeros((num_segs, num_feats), dtype=np.float32)
+            X2 = np.zeros((num_segs, num_feats), dtype=np.float32)
+            
+            for idx, seg_id in enumerate(seg_ids):
+                for f_idx, key in enumerate(feature_keys):
+                    X1[idx, f_idx] = feature_dict_d1[seg_id].get(key, 0.0)
+                    X2[idx, f_idx] = feature_dict_d2[seg_id].get(key, 0.0)
+
+            # Min-max scaling per feature column to [0, 1] range to normalize feature scales
+            X1_norm = np.zeros_like(X1)
+            X2_norm = np.zeros_like(X2)
+            for f_idx in range(num_feats):
+                col1 = X1[:, f_idx]
+                col2 = X2[:, f_idx]
+                min_val = min(col1.min(), col2.min())
+                max_val = max(col1.max(), col2.max())
+                diff = max_val - min_val
+                if diff > 1e-8:
+                    X1_norm[:, f_idx] = (col1 - min_val) / diff
+                    X2_norm[:, f_idx] = (col2 - min_val) / diff
+                else:
+                    X1_norm[:, f_idx] = 0.0
+                    X2_norm[:, f_idx] = 0.0
+
+            # CVA Magnitude (Euclidean Distance between normalized vectors)
+            cva_magnitudes = np.linalg.norm(X2_norm - X1_norm, axis=1)
+            otsu_threshold = otsu_threshold_continuous(cva_magnitudes)
+
+            for i, seg_id in enumerate(seg_ids):
+                cva_mag_dict[seg_id] = float(cva_magnitudes[i])
+                is_change_dict[seg_id] = 1 if cva_magnitudes[i] > otsu_threshold else 0
+        else:
+            for seg_id in unique_segments:
+                if seg_id == 0:
+                    continue
+                cva_mag_dict[seg_id] = 0.0
+                is_change_dict[seg_id] = 0
+
+        # Create CVA Magnitude & Binary Change Map rasters
+        binary_change_arr = np.zeros_like(labels2, dtype=np.uint8)
+        cva_magnitude_arr = np.zeros_like(labels2, dtype=np.float32)
+
+        for seg_id in unique_segments:
+            if seg_id == 0:
+                continue
+            mask = labels2 == seg_id
+            binary_change_arr[mask] = 255 if is_change_dict.get(seg_id, 0) == 1 else 0
+            cva_magnitude_arr[mask] = cva_mag_dict.get(seg_id, 0.0)
+
+        binary_change_path = os.path.join(output_dir, "binary_change_map.tif")
+        cva_magnitude_path = os.path.join(output_dir, "cva_magnitude.tif")
+
+        with rasterio.open(image_path) as src:
+            profile = src.profile.copy()
+            binary_change_arr[~valid_mask] = 0
+            cva_magnitude_arr[~valid_mask] = 0.0
+
+            # Write binary change map
+            profile.update(
+                driver='GTiff',
+                height=labels2.shape[0],
+                width=labels2.shape[1],
+                count=1,
+                dtype=rasterio.uint8,
+                nodata=0,
+                transform=transform,
+                compress='lzw')
+            with rasterio.open(binary_change_path, "w", **profile) as dst:
+                dst.write(binary_change_arr, 1)
+
+            # Write CVA magnitude map
+            profile.update(
+                driver='GTiff',
+                height=labels2.shape[0],
+                width=labels2.shape[1],
+                count=1,
+                dtype=rasterio.float32,
+                nodata=0.0,
+                transform=transform,
+                compress='lzw')
+            with rasterio.open(cva_magnitude_path, "w", **profile) as dst:
+                dst.write(cva_magnitude_arr, 1)
+
+        # Build polygons and include CVA metrics in attributes
         for geom, value in shapes(labels2.astype(np.int32),mask=valid_mask,transform=transform):
             if value == 0:
                 continue
-            properties_d1 = feature_dict_d1.get(int(value), {})
-            properties_d2 = feature_dict_d2.get(int(value), {})
+            properties_d1 = feature_dict_d1.get(int(value), {}).copy()
+            properties_d2 = feature_dict_d2.get(int(value), {}).copy()
+            
+            # Inject CVA Magnitude and Is Change attributes
+            properties_d1.update({
+                'cva_mag': float(cva_mag_dict.get(int(value), 0.0)),
+                'is_change': int(is_change_dict.get(int(value), 0))
+            })
+            properties_d2.update({
+                'cva_mag': float(cva_mag_dict.get(int(value), 0.0)),
+                'is_change': int(is_change_dict.get(int(value), 0))
+            })
+
             results_d1.append({
                 'geometry': geom,
                 'properties': properties_d1
@@ -702,8 +849,8 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         gdf_d1.to_file(vector_output_path_d1)
         gdf_d2.to_file(vector_output_path_d2)
 
+        # Load layers into QGIS project
         layer = QgsRasterLayer(output_path, "SLIC_RAG_Output")
-
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
         
@@ -711,14 +858,23 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         if mean_layer.isValid():
             QgsProject.instance().addMapLayer(mean_layer)
 
-        vector_layer_d1 = QgsVectorLayer(vector_output_path_d1, "SLIC_RAG_Vector_Date1", "ogr")
+        binary_layer = QgsRasterLayer(binary_change_path, "Binary_Change_Map")
+        if binary_layer.isValid():
+            QgsProject.instance().addMapLayer(binary_layer)
 
+        cva_layer = QgsRasterLayer(cva_magnitude_path, "CVA_Magnitude")
+        if cva_layer.isValid():
+            QgsProject.instance().addMapLayer(cva_layer)
+
+        vector_layer_d1 = QgsVectorLayer(vector_output_path_d1, "SLIC_RAG_Vector_Date1", "ogr")
         if vector_layer_d1.isValid():
             QgsProject.instance().addMapLayer(vector_layer_d1)
 
         vector_layer_d2 = QgsVectorLayer(vector_output_path_d2, "SLIC_RAG_Vector_Date2", "ogr")
-
         if vector_layer_d2.isValid():
             QgsProject.instance().addMapLayer(vector_layer_d2)
+
+        # Set final preview to show the Binary Change Map
+        self.display_output_preview(binary_change_path)
 
         self.progressBar.setValue(100)
