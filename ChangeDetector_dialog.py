@@ -364,6 +364,7 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             original_transform = src.transform
             crs = src.crs
             is_georeferenced = src.crs is not None
+            nodata1 = src.nodata
         if not is_georeferenced:
             transform = Affine(1.0, 0.0, 0.0, 0.0, -1.0, 0.0)
         else:
@@ -371,6 +372,7 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
         with rasterio.open(image2_path) as src2:
             image2 = src2.read([1, 2, 3])
+            nodata2 = src2.nodata
 
         if image.shape != image2.shape:
             QMessageBox.critical(self, "Error", "Date 1 and Date 2 images must have the same spatial dimensions.")
@@ -378,7 +380,23 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
         image = np.transpose(image, (1, 2, 0))
         image2 = np.transpose(image2, (1, 2, 0))
-        valid_mask = mask > 0
+        
+        # Build robust valid mask filtering out NoData, NaNs, Infs, and extreme float values
+        valid_mask = (mask > 0)
+        
+        # Check for NaN / Inf in image and image2
+        finite_mask1 = np.isfinite(image).all(axis=2)
+        finite_mask2 = np.isfinite(image2).all(axis=2)
+        valid_mask = valid_mask & finite_mask1 & finite_mask2
+        
+        # Check for explicit NoData values
+        if nodata1 is not None:
+            valid_mask = valid_mask & (image != nodata1).all(axis=2)
+        if nodata2 is not None:
+            valid_mask = valid_mask & (image2 != nodata2).all(axis=2)
+            
+        # Check for extreme values typical of unmasked float NoData (e.g. 3.4e38 or -3.4e38)
+        valid_mask = valid_mask & (np.abs(image) < 1e30).all(axis=2) & (np.abs(image2) < 1e30).all(axis=2)
 
         self.progressBar.setValue(20)
 
@@ -632,18 +650,29 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
                 real_b1, imag_b1 = gabor(blue1, frequency=0.2)
 
                 mag_r1 = np.sqrt(real_r1**2 + imag_r1**2)
+                mag_r1 = np.where(np.isfinite(mag_r1), mag_r1, 0.0)
                 mag_g1 = np.sqrt(real_g1**2 + imag_g1**2)
+                mag_g1 = np.where(np.isfinite(mag_g1), mag_g1, 0.0)
                 mag_b1 = np.sqrt(real_b1**2 + imag_b1**2)
+                mag_b1 = np.where(np.isfinite(mag_b1), mag_b1, 0.0)
 
                 phase_r1 = np.arctan2(imag_r1, real_r1)
+                phase_r1 = np.where(np.isfinite(phase_r1), phase_r1, 0.0)
                 phase_g1 = np.arctan2(imag_g1, real_g1)
+                phase_g1 = np.where(np.isfinite(phase_g1), phase_g1, 0.0)
                 phase_b1 = np.arctan2(imag_b1, real_b1)
+                phase_b1 = np.where(np.isfinite(phase_b1), phase_b1, 0.0)
+
+                mag_mean1 = float(np.mean([mag_r1.mean(), mag_g1.mean(), mag_b1.mean()]))
+                mag_std1 = float(np.mean([mag_r1.std(), mag_g1.std(), mag_b1.std()]))
+                phase_mean1 = float(np.mean([phase_r1.mean(), phase_g1.mean(), phase_b1.mean()]))
+                phase_std1 = float(np.mean([phase_r1.std(), phase_g1.std(), phase_b1.std()]))
 
                 properties_d1.update({
-                    'gabor_mag_mean': float(np.mean([mag_r1.mean(), mag_g1.mean(), mag_b1.mean()])),
-                    'gabor_mag_std': float(np.mean([mag_r1.std(), mag_g1.std(), mag_b1.std()])),
-                    'gabor_phase_mean': float(np.mean([phase_r1.mean(), phase_g1.mean(), phase_b1.mean()])),
-                    'gabor_phase_std': float(np.mean([phase_r1.std(), phase_g1.std(), phase_b1.std()]))
+                    'gab_mag_mn': mag_mean1 if np.isfinite(mag_mean1) and abs(mag_mean1) < 1e30 else 0.0,
+                    'gab_mag_sd': mag_std1 if np.isfinite(mag_std1) and abs(mag_std1) < 1e30 else 0.0,
+                    'gab_phs_mn': phase_mean1 if np.isfinite(phase_mean1) and abs(phase_mean1) < 1e30 else 0.0,
+                    'gab_phs_sd': phase_std1 if np.isfinite(phase_std1) and abs(phase_std1) < 1e30 else 0.0
                 })
 
                 real_r2, imag_r2 = gabor(red2, frequency=0.2)
@@ -651,18 +680,29 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
                 real_b2, imag_b2 = gabor(blue2, frequency=0.2)
 
                 mag_r2 = np.sqrt(real_r2**2 + imag_r2**2)
+                mag_r2 = np.where(np.isfinite(mag_r2), mag_r2, 0.0)
                 mag_g2 = np.sqrt(real_g2**2 + imag_g2**2)
+                mag_g2 = np.where(np.isfinite(mag_g2), mag_g2, 0.0)
                 mag_b2 = np.sqrt(real_b2**2 + imag_b2**2)
+                mag_b2 = np.where(np.isfinite(mag_b2), mag_b2, 0.0)
 
                 phase_r2 = np.arctan2(imag_r2, real_r2)
+                phase_r2 = np.where(np.isfinite(phase_r2), phase_r2, 0.0)
                 phase_g2 = np.arctan2(imag_g2, real_g2)
+                phase_g2 = np.where(np.isfinite(phase_g2), phase_g2, 0.0)
                 phase_b2 = np.arctan2(imag_b2, real_b2)
+                phase_b2 = np.where(np.isfinite(phase_b2), phase_b2, 0.0)
+
+                mag_mean2 = float(np.mean([mag_r2.mean(), mag_g2.mean(), mag_b2.mean()]))
+                mag_std2 = float(np.mean([mag_r2.std(), mag_g2.std(), mag_b2.std()]))
+                phase_mean2 = float(np.mean([phase_r2.mean(), phase_g2.mean(), phase_b2.mean()]))
+                phase_std2 = float(np.mean([phase_r2.std(), phase_g2.std(), phase_b2.std()]))
 
                 properties_d2.update({
-                    'gabor_mag_mean': float(np.mean([mag_r2.mean(), mag_g2.mean(), mag_b2.mean()])),
-                    'gabor_mag_std': float(np.mean([mag_r2.std(), mag_g2.std(), mag_b2.std()])),
-                    'gabor_phase_mean': float(np.mean([phase_r2.mean(), phase_g2.mean(), phase_b2.mean()])),
-                    'gabor_phase_std': float(np.mean([phase_r2.std(), phase_g2.std(), phase_b2.std()]))
+                    'gab_mag_mn': mag_mean2 if np.isfinite(mag_mean2) and abs(mag_mean2) < 1e30 else 0.0,
+                    'gab_mag_sd': mag_std2 if np.isfinite(mag_std2) and abs(mag_std2) < 1e30 else 0.0,
+                    'gab_phs_mn': phase_mean2 if np.isfinite(phase_mean2) and abs(phase_mean2) < 1e30 else 0.0,
+                    'gab_phs_sd': phase_std2 if np.isfinite(phase_std2) and abs(phase_std2) < 1e30 else 0.0
                 })
 
             # ==================================================
@@ -757,8 +797,10 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             otsu_threshold = otsu_threshold_continuous(cva_magnitudes)
 
             for i, seg_id in enumerate(seg_ids):
-                cva_mag_dict[seg_id] = float(cva_magnitudes[i])
-                is_change_dict[seg_id] = 1 if cva_magnitudes[i] > otsu_threshold else 0
+                val = cva_magnitudes[i]
+                val_clean = float(val) if np.isfinite(val) and abs(val) < 1e30 else 0.0
+                cva_mag_dict[seg_id] = val_clean
+                is_change_dict[seg_id] = 1 if val_clean > otsu_threshold else 0
         else:
             for seg_id in unique_segments:
                 if seg_id == 0:
