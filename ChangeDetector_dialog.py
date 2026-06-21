@@ -24,7 +24,7 @@
 from skimage.feature import graycomatrix, graycoprops
 import os
 # pyrefly: ignore [missing-import]
-from PyQt5.QtGui import QPixmap,QImage
+from PyQt5.QtGui import QPixmap, QImage, QColor
 # pyrefly: ignore [missing-import]
 from PyQt5.QtCore import Qt
 # pyrefly: ignore [missing-import]
@@ -34,8 +34,7 @@ from osgeo import gdal
 from rasterio.transform import Affine
 # pyrefly: ignore [missing-import]
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
-from qgis.core import QgsRasterLayer, QgsProject
-from qgis.core import QgsVectorLayer
+from qgis.core import QgsRasterLayer, QgsProject, QgsVectorLayer, QgsPalettedRasterRenderer
 import numpy as np
 import rasterio
 from skimage.segmentation import slic
@@ -95,6 +94,8 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         super(ObejctBasedChangeDetectorDialog, self).__init__(parent)
         self.setupUi(self)
         self.image_data = {}
+        self.showing_binary_change = False
+        self.binary_change_mask = None
         self.browseOutputButton.clicked.connect(self.select_output_directory)
         self.comboBox_segmentation.currentTextChanged.connect(self.update_segmentation_parameters)
         self.browseDate1Button.clicked.connect(lambda: self.browse_and_load_image(self.date1LineEdit, self.image_label_1,))
@@ -127,6 +128,10 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             return
 
         target_lineedit.setText(file_path)
+
+        if target_label == self.image_label_2:
+            self.showing_binary_change = False
+            self.binary_change_mask = None
 
         #  Add FULL raster to QGIS (no RGB override)
         layer_name = os.path.basename(file_path)
@@ -247,6 +252,14 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
                 self.normalize(b_arr)
             ])
 
+            if label == self.image_label_2 and self.showing_binary_change and self.binary_change_mask is not None:
+                rgb = rgb.copy()
+                if self.binary_change_mask.shape != rgb.shape[:2]:
+                    resized_mask = cv2.resize(self.binary_change_mask.astype(np.uint8), (rgb.shape[1], rgb.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+                else:
+                    resized_mask = self.binary_change_mask
+                rgb[resized_mask] = [0, 0, 0]
+
             rgb = np.ascontiguousarray(rgb)
 
             h, w, _ = rgb.shape
@@ -257,7 +270,7 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
             label.setPixmap(pixmap)
             label.setScaledContents(True)
     
-    def display_output_preview(self, raster_path):
+    def display_output_preview(self, raster_path, is_binary_mask=False):
         dataset = gdal.Open(raster_path)
         if dataset is None:
             return
@@ -269,35 +282,43 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
                 buf_xsize=600,
                 buf_ysize=600)
             bands.append(arr)
-        if band_count == 1:
-            arr = self.normalize(bands[0])
-            rgb = np.dstack([arr, arr, arr])
-        elif band_count == 2:
-            # Pad the third channel with zeros
-            r_arr = self.normalize(bands[0])
-            g_arr = self.normalize(bands[1])
-            b_arr = np.zeros_like(r_arr)
-            rgb = np.dstack([r_arr, g_arr, b_arr])
+
+        if is_binary_mask:
+            self.showing_binary_change = True
+            self.binary_change_mask = (bands[0] > 127)
+            self.update_preview()
         else:
-            rgb = np.dstack([
-                bands[0],
-                bands[1],
-                bands[2]])
- 
+            self.showing_binary_change = False
+            self.binary_change_mask = None
 
-        rgb = np.ascontiguousarray(rgb)
-        h, w, _ = rgb.shape
-        qimg = QImage(
-            rgb.data,
-            w,
-            h,
-            3 * w,
-            QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(qimg)
+            if band_count == 1:
+                arr = self.normalize(bands[0])
+                rgb = np.dstack([arr, arr, arr])
+            elif band_count == 2:
+                # Pad the third channel with zeros
+                r_arr = self.normalize(bands[0])
+                g_arr = self.normalize(bands[1])
+                b_arr = np.zeros_like(r_arr)
+                rgb = np.dstack([r_arr, g_arr, b_arr])
+            else:
+                rgb = np.dstack([
+                    bands[0],
+                    bands[1],
+                    bands[2]])
+     
+            rgb = np.ascontiguousarray(rgb)
+            h, w, _ = rgb.shape
+            qimg = QImage(
+                rgb.data,
+                w,
+                h,
+                3 * w,
+                QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimg)
 
-        # REPLACE DATE 2 PREVIEW
-        self.image_label_2.setPixmap(pixmap)
-        self.image_label_2.setScaledContents(True)
+            # REPLACE DATE 2 PREVIEW
+            self.image_label_2.setPixmap(pixmap)
+            self.image_label_2.setScaledContents(True)
 
 # --------------------------------------------------
 # 🎚️ Normalize band values
@@ -902,6 +923,12 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
 
         binary_layer = QgsRasterLayer(binary_change_path, "Binary_Change_Map")
         if binary_layer.isValid():
+            classes = [
+                QgsPalettedRasterRenderer.Class(0, QColor(0, 0, 0, 0), "Unchanged"),
+                QgsPalettedRasterRenderer.Class(255, QColor(0, 0, 0, 255), "Changed")
+            ]
+            renderer = QgsPalettedRasterRenderer(binary_layer.dataProvider(), 1, classes)
+            binary_layer.setRenderer(renderer)
             QgsProject.instance().addMapLayer(binary_layer)
 
         cva_layer = QgsRasterLayer(cva_magnitude_path, "CVA_Magnitude")
@@ -916,7 +943,7 @@ class ObejctBasedChangeDetectorDialog(QtWidgets.QDialog, FORM_CLASS):
         if vector_layer_d2.isValid():
             QgsProject.instance().addMapLayer(vector_layer_d2)
 
-        # Set final preview to show the Binary Change Map
-        self.display_output_preview(binary_change_path)
+        # Set final preview to show the Binary Change Map overlay
+        self.display_output_preview(binary_change_path, is_binary_mask=True)
 
         self.progressBar.setValue(100)
